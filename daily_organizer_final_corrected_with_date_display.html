@@ -1,0 +1,314 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المنظم اليومي - نسخة نهائية</title>
+<style>
+  body {
+    font-family: 'Tajawal', sans-serif;
+    background: linear-gradient(to bottom, #f9fbfd, #e6ecf2);
+    margin: 0;
+    padding: 20px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 {
+    font-size: 28px;
+    color: #2c3e50;
+    margin-bottom: 20px;
+  }
+  .container {
+    width: 100%;
+    max-width: 850px;
+    background: #ffffff;
+    padding: 30px;
+    border-radius: 20px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .date-picker {
+    margin-bottom: 20px;
+    width: 60%;
+  }
+  input[type="date"] {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border-radius: 12px;
+    border: 1px solid #ccc;
+    background: #f1f3f6;
+  }
+  textarea {
+    width: 100%;
+    height: 160px;
+    margin-bottom: 20px;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 12px;
+    background: #f1f3f6;
+    resize: vertical;
+  }
+  .main-button {
+    padding: 14px 28px;
+    font-size: 18px;
+    background: linear-gradient(45deg, #00b4db, #0083b0);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    margin-bottom: 25px;
+    transition: background 0.3s;
+  }
+  .main-button:hover {
+    background: linear-gradient(45deg, #0083b0, #00b4db);
+  }
+  .task-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  .task-card {
+    background: #fafafa;
+    border-radius: 15px;
+    padding: 15px 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    transition: 0.3s;
+  }
+  .task-card:hover {
+    background: #f0f4f8;
+  }
+  .task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .task-name {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+  }
+  .task-time {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+  }
+  .task-time::before {
+    content: "⏰";
+    margin-left: 5px;
+  }
+  .task-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .task-actions button {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: #e0e7ef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+  .task-actions button:hover {
+    background: #c5d4e0;
+  }
+  .delete-btn {
+    background: #f8d7da;
+  }
+  .delete-btn:hover {
+    background: #e6bfc2;
+  }
+  .note {
+    margin-top: 10px;
+    padding: 10px;
+    background: #e9ecef;
+    border-radius: 10px;
+    font-size: 14px;
+    color: #444;
+  }
+</style>
+</head>
+<body>
+
+<h1>📅 المنظم اليومي </h1>
+
+<div class="container">
+  <div class="date-picker">
+    <input type="date" id="taskDate" onchange="loadTasksForSelectedDate()">
+  </div>
+  <textarea id="tasksInput" placeholder="📝 أدخل مهامك هنا (مثال: قراءة 8 صباحا، غداء 1 ظهرا)"></textarea>
+  <button class="main-button" onclick="organizeTasks()">📋 رتب المهام</button>
+  <div class="task-list" id="taskList"></div>
+</div>
+
+<script>
+function getStorageKey(date) {
+  return 'tasks_' + date;
+}
+
+function getSelectedDate() {
+  return document.getElementById('taskDate').value || new Date().toISOString().slice(0, 10);
+}
+
+function parseTime(text) {
+  let hourMatch = text.match(/(\d{1,2})(:\d{2})?\s*(صباحا|مساء|مساءً|ظهرا|ظهرًا)?/i);
+  if (!hourMatch) return null;
+  let hour = parseInt(hourMatch[1], 10);
+  let minutes = hourMatch[2] ? parseInt(hourMatch[2].slice(1), 10) : 0;
+  let period = hourMatch[3] ? hourMatch[3].toLowerCase() : '';
+  if (period.includes('مساء') && hour < 12) hour += 12;
+  if (period.includes('ظه')) hour = (hour === 12 ? 12 : hour + 12);
+  if (period.includes('صباح') && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function organizeTasks() {
+  const rawTasks = document.getElementById('tasksInput').value.trim().split('\n');
+  const parsedTasks = [];
+
+  rawTasks.forEach(line => {
+    const time = parseTime(line);
+    if (time) {
+      const name = line.replace(/(\d{1,2})(:\d{2})?\s*(صباحا|مساء|مساءً|ظهرا|ظهرًا)?/i, '').trim();
+      parsedTasks.push({ time, name, note: '' });
+    }
+  });
+
+  parsedTasks.sort((a, b) => a.time.localeCompare(b.time));
+  saveTasks(parsedTasks);
+  displayTasks(parsedTasks);
+}
+
+function displayTasks(tasks) {
+  const taskList = document.getElementById('taskList');
+  taskList.innerHTML = '';
+
+  tasks.forEach((task, index) => {
+    const card = document.createElement('div');
+    card.className = 'task-card';
+
+    const header = document.createElement('div');
+    header.className = 'task-header';
+
+    const name = document.createElement('div');
+    name.className = 'task-name';
+    name.textContent = task.name;
+
+    const actions = document.createElement('div');
+    actions.className = 'task-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.innerHTML = '✏️';
+    editBtn.title = 'تعديل';
+    editBtn.onclick = () => editTask(index);
+    actions.appendChild(editBtn);
+
+    const noteBtn = document.createElement('button');
+    noteBtn.innerHTML = '🗒️';
+    noteBtn.title = 'ملاحظة';
+    noteBtn.onclick = () => addNoteToTask(index);
+    actions.appendChild(noteBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.innerHTML = '🗑️';
+    delBtn.className = 'delete-btn';
+    delBtn.title = 'حذف';
+    delBtn.onclick = () => deleteTask(index);
+    actions.appendChild(delBtn);
+
+    header.appendChild(name);
+    header.appendChild(actions);
+
+    const time = document.createElement('div');
+    time.className = 'task-time';
+    time.textContent = task.time;
+
+    card.appendChild(header);
+    card.appendChild(time);
+
+    if (task.note) {
+      const note = document.createElement('div');
+      note.className = 'note';
+      note.textContent = `ملاحظة: ${task.note}`;
+      card.appendChild(note);
+    }
+
+    taskList.appendChild(card);
+  });
+}
+
+function saveTasks(tasks) {
+  const key = getStorageKey(getSelectedDate());
+  localStorage.setItem(key, JSON.stringify(tasks));
+}
+
+function loadTasksForSelectedDate() {
+  const key = getStorageKey(getSelectedDate());
+  const tasks = JSON.parse(localStorage.getItem(key) || '[]');
+  displayTasks(tasks);
+  document.getElementById('tasksInput').value = tasks.map(t => `${t.name} ${t.time}`).join('\n');
+}
+
+function editTask(index) {
+  const key = getStorageKey(getSelectedDate());
+  const tasks = JSON.parse(localStorage.getItem(key) || '[]');
+  const current = tasks[index];
+  const newData = prompt('تعديل المهمة (اسم المهمة + توقيت hh:mm):', `${current.name} ${current.time}`);
+  if (newData) {
+    const match = newData.match(/(.+)\s+(\d{2}:\d{2})$/);
+    if (match) {
+      tasks[index].name = match[1].trim();
+      tasks[index].time = match[2].trim();
+      tasks.sort((a, b) => a.time.localeCompare(b.time));
+      localStorage.setItem(key, JSON.stringify(tasks));
+      displayTasks(tasks);
+    } else {
+      alert('تنسيق غير صحيح. يرجى كتابة اسم المهمة متبوعاً بالوقت hh:mm');
+    }
+  }
+}
+
+function deleteTask(index) {
+  const key = getStorageKey(getSelectedDate());
+  const tasks = JSON.parse(localStorage.getItem(key) || '[]');
+  if (confirm('هل أنت متأكد من حذف هذه المهمة؟')) {
+    tasks.splice(index, 1);
+    localStorage.setItem(key, JSON.stringify(tasks));
+    displayTasks(tasks);
+  }
+}
+
+function addNoteToTask(index) {
+  const key = getStorageKey(getSelectedDate());
+  const tasks = JSON.parse(localStorage.getItem(key) || '[]');
+  const newNote = prompt('أدخل ملاحظة للمهمة:', tasks[index].note || '');
+  if (newNote !== null) {
+    tasks[index].note = newNote.trim();
+    localStorage.setItem(key, JSON.stringify(tasks));
+    displayTasks(tasks);
+  }
+}
+
+document.getElementById('taskDate').value = new Date().toISOString().slice(0, 10);
+loadTasksForSelectedDate();
+</script>
+
+</body>
+</html>
